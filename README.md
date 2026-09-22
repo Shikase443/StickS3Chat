@@ -1,31 +1,40 @@
-# StickS3 Chat
+# StickS3Chat
 
-Voice chat firmware for the M5Stack StickS3 (ESP32-S3). It records speech with push-to-talk, sends it to configurable AI services, and plays the generated response through the built-in speaker.
+[日本語](README.md) | [English](README_EN.md)
 
-## Features
+M5Stack StickS3（ESP32-S3）向けの音声会話チャットアプリです。ホーム画面でAボタンを押している間だけ録音し、設定したAIサービスで音声認識、応答生成、音声合成を行い、本体スピーカーから再生します。
 
-- Push-to-talk recording from the home screen
-- Explicit PSRAM recording buffer with a 30-second limit
-- Separate STT, LLM, and TTS APIs
-- Integrated voice-agent API mode
-- OpenAI-compatible, Gemini, and Anthropic providers where applicable
-- OpenAI Responses and Chat Completions URL detection
-- Optional OpenClaw and Hermes Agent session headers
-- Temporary password-protected WebUI
-- Wi-Fi, service, NTP, time-zone, volume, and brightness settings stored in NVS
-- NTP clock, Wi-Fi status, battery status, and lightweight animated face
+このプロジェクトは **OpenAI Codexを使用して開発されました**。
 
-## Requirements
+<p align="center">
+  <img src="doc/HOME.jpg" alt="ホーム画面" width="260">
+  <img src="doc/CONFIG.jpg" alt="Config画面" width="260">
+</p>
+
+## 主な機能
+
+- Push-to-Talk方式の音声録音（最大30秒、PSRAM使用）
+- STT → LLM → TTSを個別に呼び出す `Separate APIs`
+- 1つの独自APIで音声会話を処理する `Integrated API`
+- OpenAI互換APIとGemini APIへの対応
+- LLMでOpenAI Responses APIとChat Completions APIをURLから自動判定
+- OpenClawとHermes Agentのセッションヘッダーに対応
+- 音声再生中の字幕表示と口パク表示
+- Wi-Fi、NTP、タイムゾーン、音量、画面輝度の設定
+- 設定画面を開いている間だけ有効な、5桁パスワード認証付きWebUI
+- 設定値をNVSへ保存
+
+## 必要な環境
 
 - M5Stack StickS3
-- ESP-IDF 5.4 or later
-- USB connection for flashing
+- ESP-IDF 5.4以降
+- USB接続
 
-Dependencies are resolved through the ESP-IDF Component Manager. M5Unified is declared in `main/idf_component.yml`.
+依存ライブラリはESP-IDF Component Managerで取得します。M5Unifiedは `main/idf_component.yml` に定義されています。
 
-## Build and flash
+## ビルドと転送
 
-Activate ESP-IDF, then run:
+ESP-IDF環境を有効にしてから実行します。
 
 ```powershell
 idf.py set-target esp32s3
@@ -33,27 +42,152 @@ idf.py build
 idf.py -p COM8 flash
 ```
 
-Replace `COM8` with the port assigned to your device.
+`COM8`はStickS3に割り当てられたCOMポートへ置き換えてください。
 
-## Device controls
+## 本体操作
 
-- Home, no menu selected: hold A to record; release A to send
-- Home: press B to select `Config`; press A to open it
-- Config: press B to move the selection; press A to activate it
-- Text input: tilt left or right to select characters; tilt forward for `OK`; tilt backward for `DEL`; press A to activate the selected item
+| 画面・状態 | 操作 |
+|---|---|
+| ホーム・メニュー未選択 | Aボタンを押している間だけ録音し、離すと送信 |
+| ホーム | Bボタンで `Config` を選択、Aボタンで決定 |
+| Config | Bボタンで項目選択、Aボタンで決定 |
+| 文字入力 | 左右の傾きで文字選択、前へ傾けて `OK`、後ろへ傾けて `DEL`、Aボタンで実行 |
+| 音声再生中 | Aボタンで音声再生と字幕送りを停止し、録音待ちへ戻る |
 
-## Initial setup
+## 初期設定
 
-1. Open `Config` on the device.
-2. Enter the Wi-Fi SSID and password.
-3. After Wi-Fi connects, open the displayed WebUI URL.
-4. Sign in with the temporary five-digit password shown on the device.
-5. Configure either `Separate APIs` or `Integrated API` and save.
+1. 本体で `Config` を開きます。
+2. `SSID` と `PASS` を入力します。
+3. Wi-Fi接続後、本体に表示されたWebUIのURLをブラウザで開きます。
+4. 本体に表示された5桁の一時パスワードでログインします。
+5. 日時と接続方式を設定して保存します。
 
-The WebUI server is available only while the Config screen is open. A new temporary password is generated whenever the server starts.
+<p align="center">
+  <img src="doc/WebUI_login.png" alt="WebUIログイン" width="560">
+</p>
 
-## Configuration storage
+WebUIサーバーは本体のConfig画面を表示している間だけ動作します。サーバーを起動するたびに、新しい5桁パスワードが生成されます。
 
-Wi-Fi credentials, API URLs, API keys, session identifiers, and UI settings are entered at runtime and stored in the device's NVS. This repository contains no preconfigured Wi-Fi credentials, API keys, private server addresses, or session identifiers.
+### 日時と接続方式
 
-Fresh installations default to `pool.ntp.org` and UTC. Both values can be changed from the WebUI.
+NTPサーバー、タイムゾーン、接続方式を設定します。`Separate APIs` と `Integrated API` の設定値はそれぞれ保持され、方式を切り替えても削除されません。
+
+<p align="center">
+  <img src="doc/WebUI_Settings_Date%26Time_ConnectionMode.png" alt="日時と接続方式" width="560">
+</p>
+
+## Separate APIs
+
+録音した音声をSTTへ送り、認識結果をLLMへ、LLMの回答をTTSへ送ります。
+
+```text
+マイク録音 → STT → LLM → TTS → スピーカー再生
+```
+
+### OpenAI設定例
+
+| 用途 | Provider | URL | Model | Voice |
+|---|---|---|---|---|
+| STT | OpenAI (Compatible) | `https://api.openai.com/v1/audio/transcriptions` | `gpt-4o-transcribe` | — |
+| LLM | OpenAI (Compatible) | `https://api.openai.com/v1/responses` | `gpt-5.6-luna` | — |
+| TTS | OpenAI (Compatible) | `https://api.openai.com/v1/audio/speech` | `gpt-4o-mini-tts` | `marin` |
+
+- OpenAI公式APIを使う場合は、各ブロックのAPI KeyへOpenAI APIキーを設定します。
+- API Keyが空の場合は `Authorization` ヘッダーを送らないため、認証不要のLAN内OpenAI互換サーバーにも接続できます。
+- LLM URLが `/responses` で終わる場合はResponses API、`/chat/completions` で終わる場合はChat Completions APIとして処理します。
+- STTのLanguageが `Auto` の場合は `language` を送信しません。`ja`や`en`などを選ぶと、その値を送信します。
+- `AI Agent`でOpenClawまたはHermes Agentを選択すると、設定したSession IDをLLMリクエストだけに付与します。
+
+OpenAIのAPI仕様は、[GPT-4o Transcribe](https://developers.openai.com/api/docs/models/gpt-4o-transcribe)、[Models](https://developers.openai.com/api/docs/models)、[Text to speech](https://developers.openai.com/api/docs/guides/text-to-speech)を参照してください。
+
+### Gemini設定例
+
+| 用途 | Provider | URL | Model | Voice |
+|---|---|---|---|---|
+| STT | Gemini | `https://generativelanguage.googleapis.com/v1beta` | `gemini-3.5-transcribe` | — |
+| LLM | Gemini | `https://generativelanguage.googleapis.com/v1beta` | `gemini-3.5-flash-lite` | — |
+| TTS | Gemini | `https://generativelanguage.googleapis.com/v1beta` | `gemini-3.1-flash-tts-preview` | 例: `Kore` |
+
+- 各ブロックのAPI KeyへGemini APIキーを設定します。
+- STTは録音データをFiles APIへアップロードして文字起こしします。
+- STTのLanguageが `Auto` の場合は言語指定を省略します。日本語は `ja-JP`、英語は `en-US`として処理します。
+- LLMはGeminiの `generateContent` を使用します。
+- TTSはGeminiのストリーミング応答から24kHz・16bit・モノラルPCMを取り出して再生します。
+
+GeminiのAPI仕様は、[Audio understanding](https://ai.google.dev/gemini-api/docs/audio)、[Gemini models](https://ai.google.dev/gemini-api/docs/models)、[Speech generation](https://ai.google.dev/gemini-api/docs/speech-generation)を参照してください。
+
+### WebUIの各設定ブロック
+
+<p align="center"><img src="doc/WebUI_STT.png" alt="STT設定" width="560"></p>
+<p align="center"><img src="doc/WebUI_LLM.png" alt="LLM設定" width="560"></p>
+<p align="center"><img src="doc/WebUI_TTS_Save.png" alt="TTS設定と保存" width="560"></p>
+
+保存済みAPI KeyはWebUIへ平文表示されません。API Key欄を空のまま保存すると、保存済みの値を維持します。
+
+### Claude（Anthropic）
+
+ClaudeはLLMのProviderとして実装されていますが、**未検証**です。STTとTTSでは選択できません。
+
+## Integrated API
+
+`Integrated API`では、録音した音声を1つの独自APIサーバーへ送り、サーバー側でSTT・LLM・TTSを一括処理します。このような独自APIサーバーと連携できます。
+
+```text
+マイク録音 → Integrated API → JSON + WAV → スピーカー再生
+```
+
+### リクエスト例
+
+```bash
+curl -X POST https://api.example.com/v1/voice-chat \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@recording.wav;type=audio/wav" \
+  -F "correctTranscript=true" \
+  -F "user=example-user" \
+  -F "sessionKey=example-session" \
+  -F "deviceId=sticks3-example" \
+  -F "resetSession=false" \
+  -F "voice=example-voice"
+```
+
+リクエストは `multipart/form-data` です。`file`だけが必須で、録音データは16kHz・16bit・モノラルPCMのWAVです。API Keyが空の場合は `Authorization` ヘッダーを送信しません。
+
+| フィールド | 必須 | 説明 |
+|---|---:|---|
+| `file` | はい | 録音したWAVファイル |
+| `correctTranscript` | いいえ | 認識結果を補正するか。既定値は `true` |
+| `user` | いいえ | ユーザー識別子 |
+| `sessionKey` | いいえ | 会話セッション識別子 |
+| `deviceId` | いいえ | デバイス識別子 |
+| `resetSession` | いいえ | 通常は `false` |
+| `voice` | いいえ | サーバー側で使用する音声名 |
+
+### レスポンス例
+
+レスポンスは `multipart/mixed` とし、1番目のパートにJSON、2番目のパートにWAV音声を返します。
+
+```http
+HTTP/1.1 200 OK
+Content-Type: multipart/mixed; boundary=voice-response
+
+--voice-response
+Content-Type: application/json; charset=utf-8
+
+{"transcript":"こんにちは","answer":"こんにちは。何をお手伝いしましょうか？","sessionKey":"example-session"}
+--voice-response
+Content-Type: audio/wav
+Content-Length: 123456
+
+<WAV binary: 24 kHz, 16-bit PCM, stereo>
+--voice-response--
+```
+
+WAVパートには正しい `Content-Length` が必要です。レスポンスで返された `sessionKey` は、次回以降のリクエストで再利用されます。
+
+## 設定データ
+
+Wi-Fi認証情報、API URL、API Key、セッション情報、日時設定、音量、画面輝度は本体のNVSへ保存されます。リポジトリには、自宅内IPアドレス、個人用外部エンドポイント、Wi-Fi認証情報、API Key、セッションIDを含めていません。
+
+## 開発
+
+本アプリはOpenAI Codexとの共同作業により設計・実装・デバッグされました。
