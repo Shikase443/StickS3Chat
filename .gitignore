@@ -1,0 +1,14 @@
+# ESP-IDF generated files
+build/
+managed_components/
+sdkconfig
+sdkconfig.old
+
+# Local development files
+.vscode/
+.idea/
+*.log
+
+# Unused local design assets
+assets/
+main/faces/
