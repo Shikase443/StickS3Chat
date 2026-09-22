@@ -1,0 +1,16 @@
+# Text files: normalize to LF in the repository
+* text=auto
+
+# Force LF line endings on all platforms for the dependency lock file.
+# Prevents spurious CRLF diffs when switching between Windows and Linux.
+dependencies.lock text eol=lf
+
+# Binary files (do not treat as text)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.rgb565 binary
+*.bin binary
+*.elf binary
