@@ -23,6 +23,10 @@ M5Stack StickS3（ESP32-S3）向けの音声会話チャットアプリです。
 - Wi-Fi、NTP、タイムゾーン、音量、画面輝度の設定
 - 設定画面を開いている間だけ有効な、5桁パスワード認証付きWebUI
 - 設定値をNVSへ保存
+- 表情画像のアップロード（5種類、LittleFSにRGB565で保存）
+- ベクトル顔と画像顔の切り替え
+- TTS Instructions（音声スタイルの指示）
+- 会話履歴を削除するForgetボタン（YES/NO確認付き）
 
 ## 必要な環境
 
@@ -49,7 +53,8 @@ idf.py -p COM8 flash
 | 画面・状態 | 操作 |
 |---|---|
 | ホーム・メニュー未選択 | Aボタンを押している間だけ録音し、離すと送信 |
-| ホーム | Bボタンで `Config` を選択、Aボタンで決定 |
+| ホーム | Bボタンで `Config` / `Forget` を選択、Aボタンで決定 |
+| Forget確認 | Bボタンで `YES` / `NO` を切り替え、Aボタンで決定（YESで履歴削除、NOでキャンセル） |
 | Config | Bボタンで項目選択、Aボタンで決定 |
 | 文字入力 | 左右の傾きで文字選択、前へ傾けて `OK`、後ろへ傾けて `DEL`、Aボタンで実行 |
 | 音声再生中 | Aボタンで音声再生と字幕送りを停止し、録音待ちへ戻る |
@@ -120,7 +125,7 @@ GeminiのAPI仕様は、[Audio understanding](https://ai.google.dev/gemini-api/d
 
 <p align="center"><img src="doc/WebUI_STT.png" alt="STT設定" width="560"></p>
 <p align="center"><img src="doc/WebUI_LLM.png" alt="LLM設定" width="560"></p>
-<p align="center"><img src="doc/WebUI_TTS_Save.png" alt="TTS設定と保存" width="560"></p>
+<p align="center"><img src="doc/WebUI_TTS.png" alt="TTS設定" width="560"></p>
 
 保存済みAPI KeyはWebUIへ平文表示されません。API Key欄を空のまま保存すると、保存済みの値を維持します。
 
@@ -183,6 +188,44 @@ Content-Length: 123456
 ```
 
 WAVパートには正しい `Content-Length` が必要です。レスポンスで返された `sessionKey` は、次回以降のリクエストで再利用されます。
+
+## 表情カスタマイズ
+
+WebUIから表情画像をアップロードし、LCDに表示する顔を切り替えることができます。
+
+### 表情の種類
+
+| 表情 | 用途 |
+|---|---|
+| Normal | 通常時 |
+| Smile | 待機中の笑顔 |
+| Surprised | 録音中 |
+| Mouth (medium) | 発話中（口・中） |
+| Mouth (large) | 発話中（口・大） |
+
+### アップロード方法
+
+1. WebUIのFaceセクションで、各表情の画像ファイル（PNG/JPG）を選択します。
+2. ブラウザ側で114x114にリサイズし、透過部分は黒背景に合成してからRGB565へ変換します。
+3. 変換済みの25,992バイトの生データをESP32へ送信し、LittleFSに保存します。
+
+ESP32側では画像のデコード・リサイズ・色変換を行わず、LittleFSからRGB565データを読み出してLCDへ描画するだけです。
+
+<p align="center"><img src="doc/WebUI_FACE.png" alt="Face設定" width="560"></p>
+
+### ベクトル顔と画像顔
+
+Faceセクションで `Image face` / `Vector face` を切り替えます。`Vector face` を選択して保存すると、アップロードした画像ファイルは削除され、従来のベクトル描画に戻ります。
+
+## TTS Instructions
+
+TTSの音声スタイル（声質・話し方・演技など）をWebUIから指定できます。
+
+- **OpenAI**: リクエストの `instructions` フィールドに送信します。
+- **Gemini**: `DIRECTOR'S NOTES` としてテキストプロンプトに組み込みます。
+- 空欄の場合は、従来のTTS動作を維持します。
+
+Providerごとに既定値が設定されています。OpenAIは英語の指示、Geminiは日本語の指示が既定です。Providerを切り替えると、テキストエリアの内容も切り替わります。
 
 ## 設定データ
 

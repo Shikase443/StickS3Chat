@@ -23,6 +23,10 @@ This project was **developed using OpenAI Codex**.
 - Wi-Fi, NTP, time zone, volume, and display brightness settings
 - Temporary five-digit password-protected WebUI, active only on the Config screen
 - Persistent settings in NVS
+- Face image upload (5 expressions, stored as RGB565 in LittleFS)
+- Toggle between vector face and image face
+- TTS Instructions (voice style directives)
+- Forget button to clear conversation history (with YES/NO confirmation)
 
 ## Requirements
 
@@ -49,7 +53,8 @@ Replace `COM8` with the COM port assigned to your StickS3.
 | Screen / state | Control |
 |---|---|
 | Home, no menu selected | Hold A to record; release A to send |
-| Home | Press B to select `Config`; press A to open it |
+| Home | Press B to select `Config` / `Forget`; press A to activate |
+| Forget confirm | Press B to toggle `YES` / `NO`; press A to confirm (YES clears history, NO cancels) |
 | Config | Press B to move the selection; press A to activate it |
 | Text input | Tilt left or right to select; tilt forward for `OK`; tilt backward for `DEL`; press A to activate |
 | Audio playback | Press A to stop playback and text scrolling, then return to recording standby |
@@ -116,7 +121,7 @@ See the Gemini documentation for [Audio understanding](https://ai.google.dev/gem
 
 <p align="center"><img src="doc/WebUI_STT.png" alt="STT settings" width="560"></p>
 <p align="center"><img src="doc/WebUI_LLM.png" alt="LLM settings" width="560"></p>
-<p align="center"><img src="doc/WebUI_TTS_Save.png" alt="TTS settings and save button" width="560"></p>
+<p align="center"><img src="doc/WebUI_TTS.png" alt="TTS settings" width="560"></p>
 
 Saved API keys are never displayed as plaintext in the WebUI. Saving with an empty API Key field keeps the stored value.
 
@@ -179,6 +184,44 @@ Content-Length: 123456
 ```
 
 The WAV part must include a correct `Content-Length`. The returned `sessionKey` is reused in subsequent requests.
+
+## Face customization
+
+Upload face images via the WebUI to customize the face displayed on the LCD.
+
+### Expressions
+
+| Expression | Usage |
+|---|---|
+| Normal | Default state |
+| Smile | Idle smile |
+| Surprised | Recording |
+| Mouth (medium) | Speaking (medium mouth) |
+| Mouth (large) | Speaking (large mouth) |
+
+### Upload process
+
+1. Select an image file (PNG/JPG) for each expression in the Face section of the WebUI.
+2. The browser resizes the image to 114x114, composites transparency onto a black background, and converts it to RGB565.
+3. The converted 25,992-byte raw data is sent to the ESP32 and stored in LittleFS.
+
+The ESP32 does not decode, resize, or convert the image. It simply reads the RGB565 data from LittleFS and renders it to the LCD.
+
+<p align="center"><img src="doc/WebUI_FACE.png" alt="Face settings" width="560"></p>
+
+### Vector face and image face
+
+Toggle between `Image face` and `Vector face` in the Face section. Selecting `Vector face` and saving deletes the uploaded image files and reverts to the original vector rendering.
+
+## TTS Instructions
+
+Specify the TTS voice style (timbre, speaking style, acting, etc.) via the WebUI.
+
+- **OpenAI**: Sent as the `instructions` field in the request.
+- **Gemini**: Embedded in the text prompt as `DIRECTOR'S NOTES`.
+- When empty, the default TTS behavior is maintained.
+
+Each provider has its own default value. OpenAI defaults to an English directive, Gemini to a Japanese one. Switching providers also switches the textarea content.
 
 ## Stored configuration
 

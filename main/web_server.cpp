@@ -2,10 +2,13 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <vector>
 #include "esp_random.h"
 
 namespace {
 const char LOGIN[] = R"(<!doctype html><html lang="en"><meta name="viewport" content="width=device-width"><style>body{font-family:sans-serif;max-width:28rem;margin:4rem auto;padding:1rem;background:#10141b;color:#eef}input,button{font-size:1.2rem;padding:.7rem;margin:.4rem 0;width:100%;box-sizing:border-box}button{background:#19b5a5;color:#fff;border:0}</style><h1>StickS3 WebUI</h1><form method="post" action="/login"><label>5-digit password</label><input name="password" type="password" inputmode="numeric" maxlength="5" required><button>Sign in</button></form></html>)";
+const char FACE_UPLOAD_HTML[] = R"html(<style>.faceRow{display:flex;align-items:center;gap:.6rem;margin-top:.6rem}.faceRow label{flex:0 0 9rem;margin:0}.faceRow input{flex:1}.faceStatus{flex:0 0 6.5rem;font-size:.85rem;color:#9ab;text-align:right}.faceMode{display:flex;gap:1.5rem;margin:.6rem 0}.faceMode label{display:inline;flex:0;margin:0;font-size:1rem}.faceMode input{width:auto;margin-right:.3rem}</style><fieldset style="margin-top:1.5rem"><legend>Face</legend><div class="faceMode"><label><input type="radio" name="face_mode" value="image" checked> Image face</label><label><input type="radio" name="face_mode" value="vector"> Vector face</label></div><div id="faceUploadArea"><p style="margin:.4rem 0;color:#9ab;font-size:.9rem">Upload PNG/JPG. Each is resized to 114x114, alpha composited on black, and stored as RGB565.</p><div class="faceRow"><label>Normal</label><input type="file" accept="image/*" data-face="normal"><span class="faceStatus" data-status="normal"></span></div><div class="faceRow"><label>Smile</label><input type="file" accept="image/*" data-face="smile"><span class="faceStatus" data-status="smile"></span></div><div class="faceRow"><label>Surprised (recording)</label><input type="file" accept="image/*" data-face="surprised"><span class="faceStatus" data-status="surprised"></span></div><div class="faceRow"><label>Mouth (medium)</label><input type="file" accept="image/*" data-face="mouth_medium"><span class="faceStatus" data-status="mouth_medium"></span></div><div class="faceRow"><label>Mouth (large)</label><input type="file" accept="image/*" data-face="mouth_large"><span class="faceStatus" data-status="mouth_large"></span></div></div></fieldset>)html";
+const char FACE_UPLOAD_JS[] = R"js((function(){function uploadFace(file,faceId,statusEl){statusEl.textContent='Processing...';const img=new Image();const url=URL.createObjectURL(file);img.onload=function(){URL.revokeObjectURL(url);const size=114;const canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#000';ctx.fillRect(0,0,size,size);const scale=Math.max(size/img.width,size/img.height);const w=img.width*scale,h=img.height*scale;ctx.drawImage(img,(size-w)/2,(size-h)/2,w,h);const data=ctx.getImageData(0,0,size,size).data;const out=new Uint8Array(size*size*2);let p=0;for(let i=0;i<size*size;i++){const r=data[i*4],g=data[i*4+1],b=data[i*4+2];const v=((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>3);out[p++]=(v>>8)&0xff;out[p++]=v&0xff;}statusEl.textContent='Uploading...';fetch('/upload?face='+faceId,{method:'POST',body:out.buffer}).then(function(res){statusEl.textContent=res.ok?'Saved':'Error '+res.status;}).catch(function(){statusEl.textContent='Upload failed';});};img.onerror=function(){URL.revokeObjectURL(url);statusEl.textContent='Load failed';};img.src=url;}document.querySelectorAll('input[type=file][data-face]').forEach(function(input){input.addEventListener('change',function(){if(input.files&&input.files[0]){const statusEl=document.querySelector('[data-status="'+input.dataset.face+'"]');uploadFace(input.files[0],input.dataset.face,statusEl);}});});var faceModeRadios=document.querySelectorAll('input[name=face_mode]');var faceUploadArea=document.getElementById('faceUploadArea');function toggleFaceUpload(){faceUploadArea.style.display=(document.querySelector('input[name=face_mode]:checked').value==='image')?'block':'none';}faceModeRadios.forEach(function(r){r.addEventListener('change',toggleFaceUpload);});toggleFaceUpload();})();)js";
 std::string htmlEscape(const std::string& value) {
     std::string out;
     for (char c : value) {
@@ -34,16 +37,25 @@ std::string providerOptions(const ServiceSettings& service, bool anthropic) {
     if(anthropic)out+=option("anthropic","Anthropic",service.provider);
     return out;
 }
-std::string serviceBlock(const char* id,const char* title,const ServiceSettings& service,bool voice,bool anthropic,bool agent_ui=false,const std::string& agent="none",const std::string& session="",bool language=false) {
+std::string serviceBlock(const char* id,const char* title,const ServiceSettings& service,bool voice,bool anthropic,bool agent_ui=false,const std::string& agent="none",const std::string& session="",bool language=false,bool instructions=false) {
     std::string p(id);
     std::string out="<fieldset><legend>"+std::string(title)+"</legend><label>Provider</label><select name=\""+p+"_provider\">"+providerOptions(service,anthropic)+"</select>";
     out+="<label>URL</label><input type=\"url\" name=\""+p+"_url\" value=\""+htmlEscape(service.url)+"\">";
     out+="<label>Model</label><input name=\""+p+"_model\" value=\""+htmlEscape(service.model)+"\">";
     if(language)out+="<label>Language</label><input name=\""+p+"_language\" list=\"languageOptions\" value=\""+htmlEscape(service.language)+"\"><datalist id=\"languageOptions\"><option value=\"Auto\"><option value=\"ja\"><option value=\"en\"><option value=\"ja-JP\"><option value=\"en-US\"></datalist>";
     if(voice)out+="<label>Voice</label><input name=\""+p+"_voice\" value=\""+htmlEscape(service.voice)+"\">";
+    if(instructions)out+="<label>TTS Instructions</label><textarea name=\""+p+"_instr\" rows=\"4\" style=\"width:100%;box-sizing:border-box;"+(voice?"":"")+"\">"+htmlEscape(service.instructions)+"</textarea><p style=\"margin:.4rem 0 0;color:#e55;font-size:.85rem\">It allows for the control of emotional range, intonation, impression, speaking rate, tone, and whispering, and is optimized for English.</p>";
     if(agent_ui){out+="<div id=\"agentFields\"><label>AI Agent</label><select id=\"llmAgent\" name=\"llm_agent\">"+option("none","None",agent)+option("openclaw","OpenClaw",agent)+option("hermes","Hermes Agent",agent)+"</select><div id=\"sessionField\"><label>Session ID</label><input name=\"llm_session\" value=\""+htmlEscape(session)+"\"></div></div>";}
     out+="<label>API Key</label><input type=\"password\" name=\""+p+"_key\" placeholder=\""+(service.api_key.empty()?"Not set":"Saved (leave blank to keep)")+"\"></fieldset>";
     return out;
+}
+bool parseFaceId(const std::string& id, FaceExpression& out) {
+    if (id == "normal") { out = FaceExpression::NORMAL; return true; }
+    if (id == "smile") { out = FaceExpression::SMILE; return true; }
+    if (id == "surprised") { out = FaceExpression::SURPRISED; return true; }
+    if (id == "mouth_medium") { out = FaceExpression::MOUTH_MEDIUM; return true; }
+    if (id == "mouth_large") { out = FaceExpression::MOUTH_LARGE; return true; }
+    return false;
 }
 }
 
@@ -60,7 +72,8 @@ bool WebServer::start(const Settings& config, SaveCallback callback, void* conte
     httpd_uri_t b{"/login", HTTP_POST, login, this};
     httpd_uri_t c{"/settings", HTTP_GET, settings, this};
     httpd_uri_t d{"/save", HTTP_POST, save, this};
-    httpd_register_uri_handler(server_, &a); httpd_register_uri_handler(server_, &b); httpd_register_uri_handler(server_, &c); httpd_register_uri_handler(server_, &d); return true;
+    httpd_uri_t e{"/upload", HTTP_POST, upload, this};
+    httpd_register_uri_handler(server_, &a); httpd_register_uri_handler(server_, &b); httpd_register_uri_handler(server_, &c); httpd_register_uri_handler(server_, &d); httpd_register_uri_handler(server_, &e); return true;
 }
 
 void WebServer::stop() { if (server_) httpd_stop(server_); server_ = nullptr; password_.clear(); token_.clear(); }
@@ -100,8 +113,8 @@ esp_err_t WebServer::settings(httpd_req_t* r) {
         option("GMT-11","UTC+11:00",cfg.timezone)+option("GMT-12","UTC+12:00",cfg.timezone)+option("GMT-12:45","UTC+12:45",cfg.timezone)+
         option("GMT-13","UTC+13:00",cfg.timezone)+option("GMT-14","UTC+14:00",cfg.timezone);
     std::string page = "<!doctype html><html lang=\"en\"><meta name=\"viewport\" content=\"width=device-width\"><style>body{font-family:sans-serif;max-width:36rem;margin:2rem auto;padding:1rem;background:#10141b;color:#eef}fieldset{margin:1.2rem 0;padding:1rem;border:1px solid #445;border-radius:10px}legend{font-size:1.2rem;font-weight:bold}label{display:block;margin-top:.8rem}input,select,button{font-size:1rem;padding:.7rem;width:100%;box-sizing:border-box;background:#fff;color:#111;border:0;border-radius:4px}input[type=checkbox]{width:auto}.mode{display:flex;align-items:center;gap:.6rem}.mode input{margin:0}button{margin-top:1.5rem;background:#19b5a5;color:#fff}</style><h1>StickS3 Settings</h1><form method=\"post\" action=\"/save\"><fieldset><legend>Date &amp; Time</legend><label>NTP server</label><input name=\"ntp\" value=\"" + htmlEscape(cfg.ntp_server) + "\" required><label>Time zone</label><select name=\"timezone\">"+zones+"</select></fieldset><fieldset><legend>Connection Mode</legend><label class=\"mode\"><input id=\"modeSeparate\" type=\"checkbox\" name=\"connection_mode\" value=\"separate\""+(cfg.connection_mode=="separate"?" checked":"")+"> Separate APIs</label><label class=\"mode\"><input id=\"modeIntegrated\" type=\"checkbox\" name=\"connection_mode\" value=\"integrated\""+(cfg.connection_mode=="integrated"?" checked":"")+"> Integrated API</label></fieldset><div id=\"separateApis\">"+
-        serviceBlock("stt","STT",cfg.stt,false,false,false,"none","",true)+serviceBlock("llm","LLM",cfg.llm,false,true,true,cfg.llm_agent,cfg.llm_session_id)+serviceBlock("tts","TTS",cfg.tts,true,false)+"</div><div id=\"integratedApi\"><fieldset><legend>Integrated API</legend><label>URL</label><input type=\"url\" name=\"int_url\" value=\""+htmlEscape(cfg.integrated.url)+"\"><label>API Key</label><input type=\"password\" name=\"int_key\" placeholder=\""+(cfg.integrated.api_key.empty()?"Not set":"Saved (leave blank to keep)")+"\"><label>User</label><input name=\"int_user\" value=\""+htmlEscape(cfg.integrated.user)+"\"><label>Session Key</label><input name=\"int_session\" value=\""+htmlEscape(cfg.integrated.session_key)+"\"><label>Device ID</label><input name=\"int_device\" value=\""+htmlEscape(cfg.integrated.device_id)+"\"><label>Voice</label><input name=\"int_voice\" value=\""+htmlEscape(cfg.integrated.voice)+"\"><label><input type=\"checkbox\" name=\"int_correct\" value=\"1\""+(cfg.integrated.correct_transcript?" checked":"")+"> Correct Transcript</label></fieldset></div>"+
-        "<button>Save</button></form><script>const ms=document.getElementById('modeSeparate'),mi=document.getElementById('modeIntegrated'),sep=document.getElementById('separateApis'),integ=document.getElementById('integratedApi'),p=document.querySelector('[name=llm_provider]'),a=document.getElementById('llmAgent'),af=document.getElementById('agentFields'),sf=document.getElementById('sessionField');const defaults={stt:{openai:{url:'https://api.openai.com/v1/audio/transcriptions',model:'gpt-4o-transcribe'},gemini:{url:'https://generativelanguage.googleapis.com/v1beta',model:'gemini-3.5-transcribe'}},llm:{openai:{url:'https://api.openai.com/v1/responses',model:'gpt-5.6-luna'},gemini:{url:'https://generativelanguage.googleapis.com/v1beta',model:'gemini-3.5-flash-lite'},anthropic:{url:'',model:''}},tts:{openai:{url:'https://api.openai.com/v1/audio/speech',model:'gpt-4o-mini-tts',voice:'marin'},gemini:{url:'https://generativelanguage.googleapis.com/v1beta',model:'gemini-3.1-flash-tts-preview',voice:''}}};function bind(id){const provider=document.querySelector(`[name=${id}_provider]`),url=document.querySelector(`[name=${id}_url]`),model=document.querySelector(`[name=${id}_model]`),voice=document.querySelector(`[name=${id}_voice]`),cache={};let current=provider.value;function read(){return{url:url.value,model:model.value,voice:voice?voice.value:''}}function write(v){url.value=v.url||'';model.value=v.model||'';if(voice)voice.value=v.voice||''}cache[current]=read();provider.addEventListener('change',()=>{cache[current]=read();current=provider.value;write(cache[current]||defaults[id][current]||{url:'',model:'',voice:''})})}bind('stt');bind('llm');bind('tts');function toggle(){sep.style.display=ms.checked?'block':'none';integ.style.display=mi.checked?'block':'none';af.style.display=p.value==='openai'?'block':'none';sf.style.display=p.value==='openai'&&a.value!=='none'?'block':'none'}function choose(e){if(e.target===ms){ms.checked=true;mi.checked=false}else{mi.checked=true;ms.checked=false}toggle()}ms.addEventListener('change',choose);mi.addEventListener('change',choose);p.addEventListener('change',toggle);a.addEventListener('change',toggle);toggle()</script></html>";
+        serviceBlock("stt","STT",cfg.stt,false,false,false,"none","",true)+serviceBlock("llm","LLM",cfg.llm,false,true,true,cfg.llm_agent,cfg.llm_session_id)+serviceBlock("tts","TTS",cfg.tts,true,false,false,"none","",false,true)+"</div><div id=\"integratedApi\"><fieldset><legend>Integrated API</legend><label>URL</label><input type=\"url\" name=\"int_url\" value=\""+htmlEscape(cfg.integrated.url)+"\"><label>API Key</label><input type=\"password\" name=\"int_key\" placeholder=\""+(cfg.integrated.api_key.empty()?"Not set":"Saved (leave blank to keep)")+"\"><label>User</label><input name=\"int_user\" value=\""+htmlEscape(cfg.integrated.user)+"\"><label>Session Key</label><input name=\"int_session\" value=\""+htmlEscape(cfg.integrated.session_key)+"\"><label>Device ID</label><input name=\"int_device\" value=\""+htmlEscape(cfg.integrated.device_id)+"\"><label>Voice</label><input name=\"int_voice\" value=\""+htmlEscape(cfg.integrated.voice)+"\"><label><input type=\"checkbox\" name=\"int_correct\" value=\"1\""+(cfg.integrated.correct_transcript?" checked":"")+"> Correct Transcript</label></fieldset></div>"+
+        FACE_UPLOAD_HTML + "<button>Save</button></form>" + "<script>const ms=document.getElementById('modeSeparate'),mi=document.getElementById('modeIntegrated'),sep=document.getElementById('separateApis'),integ=document.getElementById('integratedApi'),p=document.querySelector('[name=llm_provider]'),a=document.getElementById('llmAgent'),af=document.getElementById('agentFields'),sf=document.getElementById('sessionField');const defaults={stt:{openai:{url:'https://api.openai.com/v1/audio/transcriptions',model:'gpt-4o-transcribe'},gemini:{url:'https://generativelanguage.googleapis.com/v1beta',model:'gemini-3.5-transcribe'}},llm:{openai:{url:'https://api.openai.com/v1/responses',model:'gpt-5.6-luna'},gemini:{url:'https://generativelanguage.googleapis.com/v1beta',model:'gemini-3.5-flash-lite'},anthropic:{url:'',model:''}},tts:{openai:{url:'https://api.openai.com/v1/audio/speech',model:'gpt-4o-mini-tts',voice:'marin',instructions:'Speak in a cheerful and positive tone.'},gemini:{url:'https://generativelanguage.googleapis.com/v1beta',model:'gemini-3.1-flash-tts-preview',voice:'Leda',instructions:'若い少女のアニメキャラクターのように話してください。\\n高く明るい声で、可愛らしく元気にしてください。\\n少し感情を大きめに表現し、語尾を柔らかくしてください。'}}};function bind(id){const provider=document.querySelector(`[name=${id}_provider]`),url=document.querySelector(`[name=${id}_url]`),model=document.querySelector(`[name=${id}_model]`),voice=document.querySelector(`[name=${id}_voice]`),instr=document.querySelector(`[name=${id}_instr]`),cache={};let current=provider.value;function read(){return{url:url.value,model:model.value,voice:voice?voice.value:'',instructions:instr?instr.value:''}}function write(v){url.value=v.url||'';model.value=v.model||'';if(voice)voice.value=v.voice||'';if(instr)instr.value=v.instructions||''}cache[current]=read();provider.addEventListener('change',()=>{cache[current]=read();current=provider.value;write(cache[current]||defaults[id][current]||{url:'',model:'',voice:'',instructions:''})})}bind('stt');bind('llm');bind('tts');function toggle(){sep.style.display=ms.checked?'block':'none';integ.style.display=mi.checked?'block':'none';af.style.display=p.value==='openai'?'block':'none';sf.style.display=p.value==='openai'&&a.value!=='none'?'block':'none'}function choose(e){if(e.target===ms){ms.checked=true;mi.checked=false}else{mi.checked=true;ms.checked=false}toggle()}ms.addEventListener('change',choose);mi.addEventListener('change',choose);p.addEventListener('change',toggle);a.addEventListener('change',toggle);toggle();" + FACE_UPLOAD_JS + "</script></html>";
     httpd_resp_set_type(r,"text/html; charset=utf-8"); return httpd_resp_send(r,page.c_str(),page.size());
 }
 
@@ -122,6 +135,7 @@ esp_err_t WebServer::save(httpd_req_t* r) {
     };
     update_service(updated.stt,"stt",false,false);update_service(updated.llm,"llm",true,false);update_service(updated.tts,"tts",false,true);
     updated.stt.language=field(body,"stt_language");if(updated.stt.language.empty())updated.stt.language="Auto";
+    updated.tts.instructions=field(body,"tts_instr");
     const auto agent=field(body,"llm_agent");if(agent=="none"||agent=="openclaw"||agent=="hermes")updated.llm_agent=agent;
     const auto session=field(body,"llm_session");if(!session.empty()||body.find("llm_session=")!=std::string::npos)updated.llm_session_id=session;
     const auto mode=field(body,"connection_mode");updated.connection_mode=mode=="integrated"?"integrated":"separate";
@@ -130,8 +144,32 @@ esp_err_t WebServer::save(httpd_req_t* r) {
     if(updated.ntp_server.empty()||updated.timezone.empty()){httpd_resp_set_status(r,"400 Bad Request");return httpd_resp_sendstr(r,"Invalid settings");}
     self->settings_=updated;
     if(self->save_callback_)self->save_callback_(self->save_context_,updated);
+    const auto face_mode=field(body,"face_mode");
+    if(face_mode=="vector"&&self->face_store_)self->face_store_->deleteAllFaces();
     httpd_resp_set_status(r,"303 See Other");httpd_resp_set_hdr(r,"Location","/settings");return httpd_resp_send(r,nullptr,0);
 }
+esp_err_t WebServer::upload(httpd_req_t* r) {
+    auto* self = static_cast<WebServer*>(r->user_ctx);
+    if (!authenticated(r, self)) { httpd_resp_set_status(r,"303 See Other"); httpd_resp_set_hdr(r,"Location","/"); return httpd_resp_send(r,nullptr,0); }
+    if (!self->face_store_) { httpd_resp_set_status(r,"500 Server Error"); return httpd_resp_sendstr(r,"Face store unavailable"); }
+    size_t query_len = httpd_req_get_url_query_len(r) + 1;
+    if (query_len > 32) { httpd_resp_set_status(r,"400 Bad Request"); return httpd_resp_sendstr(r,"Invalid request"); }
+    char query[32];
+    if (httpd_req_get_url_query_str(r, query, query_len) != ESP_OK) { httpd_resp_set_status(r,"400 Bad Request"); return httpd_resp_sendstr(r,"Invalid request"); }
+    FaceExpression expression;
+    if (!parseFaceId(field(query, "face"), expression)) { httpd_resp_set_status(r,"400 Bad Request"); return httpd_resp_sendstr(r,"Unknown face"); }
+    if (r->content_len != FaceStore::FACE_BYTES) { httpd_resp_set_status(r,"400 Bad Request"); return httpd_resp_sendstr(r,"Invalid size"); }
+    std::vector<uint8_t> buffer(FaceStore::FACE_BYTES);
+    size_t received = 0;
+    while (received < buffer.size()) {
+        int n = httpd_req_recv(r, reinterpret_cast<char*>(buffer.data()) + received, buffer.size() - received);
+        if (n <= 0) return ESP_FAIL;
+        received += n;
+    }
+    if (!self->face_store_->saveFace(expression, buffer.data(), buffer.size())) { httpd_resp_set_status(r,"500 Server Error"); return httpd_resp_sendstr(r,"Save failed"); }
+    return httpd_resp_sendstr(r,"OK");
+}
+
 
 bool WebServer::authenticated(httpd_req_t* r, const WebServer* self) {
     size_t n = httpd_req_get_hdr_value_len(r,"Cookie"); if (!n || n > 255) return false;

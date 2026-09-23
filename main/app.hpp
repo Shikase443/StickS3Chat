@@ -1,5 +1,6 @@
 #pragma once
 #include "display.hpp"
+#include "face_store.hpp"
 #include "settings_store.hpp"
 #include "time_manager.hpp"
 #include "web_server.hpp"
@@ -21,6 +22,7 @@ private:
     AppState state_;
     Settings settings_;
     SettingsStore store_;
+    FaceStore face_store_;
     WifiManager wifi_;
     TimeManager time_;
     WebServer web_;

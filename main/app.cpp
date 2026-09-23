@@ -18,6 +18,7 @@ void App::begin() {
     speaker_config.magnification=4;
     M5.Speaker.config(speaker_config);
     display_.begin();
+    face_store_.begin();display_.setFaceStore(&face_store_);web_.setFaceStore(&face_store_);
     store_.begin();settings_=store_.load();time_.begin(settings_);wifi_.begin();voice_.begin();if(!settings_.ssid.empty())wifi_.connect(settings_);
     static constexpr uint8_t volumes[]{64,128,192,255};M5.Speaker.setVolume(volumes[settings_.volume_level]);
     static constexpr uint8_t brightness[]{64,128,192,255};M5.Display.setBrightness(brightness[settings_.brightness_level]);
@@ -60,19 +61,26 @@ void App::update() {
             if(battery_dirty_){display_.drawBattery(state_.battery_percent);battery_dirty_=false;}
             if(date_dirty_){display_.drawDate(state_.time_synced);date_dirty_=false;}
             if(clock_dirty_){display_.drawClock(state_.time_synced);clock_dirty_=false;}
-            if(menu_dirty_){display_.drawConfigButton(state_.home_selection==0);menu_dirty_=false;}
+            if(menu_dirty_){if(state_.confirm_forget)display_.drawConfirmButtons(state_.home_selection==0);else{display_.drawConfigButton(state_.home_selection==0);display_.drawForgetButton(state_.home_selection==1);}menu_dirty_=false;}
             if(voice_dirty_){display_.drawVoiceStatus(state_.voice,state_.voice_message,state_.voice_caption);voice_dirty_=false;}
             if(face_dirty_){if(mouthFace(previous_face_)&&mouthFace(state_.face))display_.drawMouth(state_.face);else display_.drawFace(state_.face);previous_face_=state_.face;face_dirty_=false;}
         }
     }else if(state_.redraw){display_.draw(state_,settings_,input_);state_.redraw=false;}
+
 }
 
 void App::normalInput(bool a,bool b) {
     if(state_.screen==Screen::HOME){
+        if(state_.confirm_forget){
+            if(b){state_.home_selection=1-state_.home_selection;menu_dirty_=true;}
+            if(a){if(state_.home_selection==0)voice_.clearHistory();state_.confirm_forget=false;state_.home_selection=-1;menu_dirty_=true;}
+            return;
+        }
         if(b){state_.home_selection=state_.home_selection+1;if(state_.home_selection>=static_cast<int>(HOME_MENU.size()))state_.home_selection=-1;menu_dirty_=true;}
         if(!a||state_.home_selection<0)return;
         auto action=HOME_MENU[state_.home_selection].action;
         if(action==HomeAction::SETTINGS)enterSettings();
+        else if(action==HomeAction::FORGET){state_.confirm_forget=true;state_.home_selection=0;menu_dirty_=true;}
         return;
     }
     if(b){state_.settings_selection=(state_.settings_selection+2)%6-1;state_.redraw=true;}if(!a)return;
@@ -112,3 +120,4 @@ void App::sync(){
 void App::saveWebSettings(void* context,const Settings& settings){
     auto* self=static_cast<App*>(context);self->settings_=settings;self->store_.save(self->settings_);self->time_.apply(self->settings_);self->state_.time_synced=false;self->state_.redraw=true;
 }
+

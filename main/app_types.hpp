@@ -6,9 +6,9 @@ enum class Screen { HOME, SETTINGS, TEXT_INPUT_SSID, TEXT_INPUT_PASS };
 enum class WifiStatus { IDLE, CONNECTING, CONNECTED, FAILED };
 enum class VoiceState { IDLE, RECORDING, STT_PROCESSING, LLM_PROCESSING, TTS_PROCESSING, PLAYING, ERROR };
 enum class FaceExpression { NORMAL, SMILE, SURPRISED, MOUTH_MEDIUM, MOUTH_LARGE };
-enum class HomeAction { SETTINGS };
+enum class HomeAction { SETTINGS, FORGET };
 struct HomeMenuItem { const char* label; HomeAction action; };
-inline constexpr std::array<HomeMenuItem,1> HOME_MENU{{{"Config",HomeAction::SETTINGS}}};
+inline constexpr std::array<HomeMenuItem,2> HOME_MENU{{{"Config",HomeAction::SETTINGS},{"Forget",HomeAction::FORGET}}};
 
 struct ServiceSettings {
     std::string provider = "openai";
@@ -17,7 +17,9 @@ struct ServiceSettings {
     std::string voice;
     std::string api_key;
     std::string language = "Auto";
+    std::string instructions;
 };
+inline constexpr const char* DEFAULT_TTS_INSTRUCTIONS = "Speak in a cheerful and positive tone.";
 struct IntegratedSettings {
     std::string url;
     std::string api_key;
@@ -33,9 +35,9 @@ struct Settings {
     std::string pass;
     std::string ntp_server = "pool.ntp.org";
     std::string timezone = "UTC0";
-    ServiceSettings stt{"openai", "https://api.openai.com/v1/audio/transcriptions", "gpt-4o-transcribe", "", "", "Auto"};
-    ServiceSettings llm{"openai", "https://api.openai.com/v1/responses", "gpt-5.6-luna", "", "", "Auto"};
-    ServiceSettings tts{"openai", "https://api.openai.com/v1/audio/speech", "gpt-4o-mini-tts", "marin", "", "Auto"};
+    ServiceSettings stt{"openai", "https://api.openai.com/v1/audio/transcriptions", "gpt-4o-transcribe", "", "", "Auto", ""};
+    ServiceSettings llm{"openai", "https://api.openai.com/v1/responses", "gpt-5.6-luna", "", "", "Auto", ""};
+    ServiceSettings tts{"openai", "https://api.openai.com/v1/audio/speech", "gpt-4o-mini-tts", "marin", "", "Auto", DEFAULT_TTS_INSTRUCTIONS};
     std::string llm_agent = "none";
     std::string llm_session_id;
     std::string connection_mode = "separate";
@@ -46,6 +48,7 @@ struct Settings {
 struct AppState {
     Screen screen = Screen::HOME;
     int home_selection = -1;
+    bool confirm_forget = false;
     int settings_selection = -1;
     WifiStatus wifi = WifiStatus::IDLE;
     std::string ip;

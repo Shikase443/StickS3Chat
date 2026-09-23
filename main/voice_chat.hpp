@@ -21,6 +21,7 @@ public:
     uint8_t mouthLevel() const { return mouth_level_.load(); }
     std::string message() const;
     std::string caption() const;
+    void clearHistory();
     size_t stackLowWater() const { return stack_low_water_.load(); }
     size_t freeHeap() const { return free_heap_.load(); }
 private:
