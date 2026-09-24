@@ -27,6 +27,7 @@ This project was **developed using OpenAI Codex**.
 - Toggle between vector face and image face
 - TTS Instructions (voice style directives)
 - Forget button to clear conversation history (with YES/NO confirmation)
+- Face standby screen that starts after 10s idle (rolls, bounces, and rotates via IMU)
 
 ## Requirements
 
@@ -58,6 +59,7 @@ Replace `COM8` with the COM port assigned to your StickS3.
 | Config | Press B to move the selection; press A to activate it |
 | Text input | Tilt left or right to select; tilt forward for `OK`; tilt backward for `DEL`; press A to activate |
 | Audio playback | Press A to stop playback and text scrolling, then return to recording standby |
+| Standby screen | After 10s idle the face enters rolling mode. Press A to start recording, B to return to the menu |
 
 ## Initial setup
 

@@ -62,40 +62,36 @@ void levelButton(int y,const char* text,bool on,uint8_t level) {
     uint32_t color=on?TFT_BLACK:TFT_CYAN;M5.Display.setTextColor(on?TFT_BLACK:TFT_LIGHTGREY);M5.Display.setTextDatum(middle_left);M5.Display.drawString(text,15,y+14);
     int bx=M5.Display.width()-38;for(int i=0;i<4;++i){int h=4+i*3;M5.Display.drawRect(bx+i*6,y+22-h,4,h,color);if(i<=level)M5.Display.fillRect(bx+i*6+1,y+23-h,2,h-2,color);}
 }
-uint8_t* faceBuffer(M5Canvas& sprite) {
+M5Canvas& faceSprite() {
+    static M5Canvas sprite(&M5.Display);
     static bool ready = false;
     if (!ready) { sprite.setColorDepth(16); sprite.setPsram(true); ready = sprite.createSprite(FACE_WIDTH, FACE_HEIGHT) != nullptr; }
-    if (!ready) return nullptr;
-    return static_cast<uint8_t*>(sprite.frameBuffer(0));
+    return sprite;
 }
 }
 
 void Display::begin() { M5.Display.setRotation(0); M5.Display.setBrightness(200); M5.Display.setFont(&fonts::efontJA_12); }
 
 void Display::drawWifi(WifiStatus status) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(24,14)!=nullptr;}if(!ready)return;
+    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(24,18)!=nullptr;}if(!ready)return;
     sprite.fillSprite(HOME_BG);uint32_t color=status==WifiStatus::CONNECTED?TFT_GREEN:0x0320;
-    sprite.drawArc(8,8,8,7,215,325,color);sprite.drawArc(8,8,5,4,215,325,color);sprite.fillCircle(8,10,1,color);sprite.pushSprite(5,0);
+    sprite.drawArc(8,9,8,7,215,325,color);sprite.drawArc(8,9,5,4,215,325,color);sprite.fillCircle(8,11,1,color);sprite.pushSprite(75,0);
 }
 
 void Display::drawBattery(int level) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(66,14)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
-    level=std::clamp(level,0,100);sprite.fillSprite(HOME_BG);sprite.setTextColor(TFT_GREEN);sprite.setTextSize(1);sprite.setTextDatum(top_right);char text[8];std::snprintf(text,sizeof(text),"%d%%",level);sprite.drawString(text,40,0);sprite.drawRect(44,2,18,9,TFT_GREEN);sprite.fillRect(62,5,2,3,TFT_GREEN);int fill=level*14/100;if(fill>0)sprite.fillRect(46,4,fill,5,TFT_GREEN);sprite.pushSprite(M5.Display.width()-66,0);
+    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(34,18)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
+    level=std::clamp(level,0,100);sprite.fillSprite(HOME_BG);sprite.drawRect(1,3,28,12,TFT_GREEN);sprite.fillRect(29,6,3,6,TFT_GREEN);int fill=level*24/100;if(fill>0)sprite.fillRect(3,5,fill,8,TFT_GREEN);char text[8];std::snprintf(text,sizeof(text),"%d%%",level);sprite.setTextColor(TFT_BLACK);sprite.setTextSize(1);sprite.setTextDatum(middle_left);sprite.drawString(text,4,9);sprite.pushSprite(M5.Display.width()-34,0);
 }
 
 void Display::drawDate(bool synced) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(135,16)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
-    char date[24]="----/--/--";if(synced){std::time_t now=std::time(nullptr);std::tm local{};localtime_r(&now,&local);std::strftime(date,sizeof(date),"%Y/%m/%d",&local);}sprite.fillSprite(HOME_BG);sprite.setTextColor(TFT_LIGHTGREY);sprite.setTextSize(1);sprite.setTextDatum(top_center);sprite.drawString(date,67,0);sprite.pushSprite(0,14);
+    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(70,18)!=nullptr;sprite.setFont(&fonts::efontJA_12_b);}if(!ready)return;
+    char text[48]="-:-- -/-";if(synced){std::time_t now=std::time(nullptr);std::tm local{};localtime_r(&now,&local);std::snprintf(text,sizeof(text),"%d:%02d %d/%d",local.tm_hour,local.tm_min,local.tm_mon+1,local.tm_mday);}sprite.fillSprite(HOME_BG);sprite.setTextColor(TFT_WHITE);sprite.setTextSize(1);sprite.setTextDatum(top_left);sprite.drawString(text,0,2);sprite.pushSprite(5,0);
 }
 
-void Display::drawClock(bool synced) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(135,28)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
-    char value[16]="--:--";if(synced){std::time_t now=std::time(nullptr);std::tm local{};localtime_r(&now,&local);std::strftime(value,sizeof(value),"%H:%M",&local);}sprite.fillSprite(HOME_BG);sprite.setTextDatum(top_center);sprite.setTextColor(TFT_WHITE);sprite.setTextSize(2);sprite.drawString(value,67,0);sprite.setTextSize(1);if(!synced){sprite.setTextColor(TFT_ORANGE);sprite.drawString("Time not synced",67,18);}sprite.pushSprite(0,30);
-}
 
 void Display::drawFace(FaceExpression expression) {
-    static M5Canvas sprite(&M5.Display);
-    uint8_t* buffer = faceBuffer(sprite);
+    M5Canvas& sprite = faceSprite();
+    uint8_t* buffer = static_cast<uint8_t*>(sprite.frameBuffer(0));
     if (!buffer) return;
     if (face_store_ && face_store_->loadFace(expression, buffer, FaceStore::FACE_BYTES)) {
         sprite.pushSprite(FACE_X, FACE_Y);
@@ -111,20 +107,38 @@ void Display::drawMouth(FaceExpression expression) {
     drawFace(expression);
 }
 
+void Display::drawRollingFace(FaceExpression expression, float cx, float cy, float angle, float scale) {
+    static M5Canvas rolling(&M5.Display);
+    static bool rolling_ready = false;
+    if (!rolling_ready) { rolling.setColorDepth(16); rolling.setPsram(true); rolling_ready = rolling.createSprite(135, 193) != nullptr; }
+    if (!rolling_ready) return;
+    rolling.fillSprite(HOME_BG);
+    M5Canvas& face = faceSprite();
+    uint8_t* buffer = static_cast<uint8_t*>(face.frameBuffer(0));
+    if (!buffer) return;
+    if (!(face_store_ && face_store_->loadFace(expression, buffer, FaceStore::FACE_BYTES))) {
+        face.fillSprite(HOME_BG);
+        if (expression == FaceExpression::SMILE) drawSmileEyes(face); else drawOpenEyes(face, expression == FaceExpression::SURPRISED);
+        drawMouthShape(face, expression, 57, 59);
+    }
+    face.pushRotateZoom(&rolling, cx, cy, angle, scale, scale);
+    rolling.pushSprite(0, 18);
+}
+
 void Display::drawConfigButton(bool selected) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(60,32)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
-    sprite.fillSprite(HOME_BG);sprite.fillRoundRect(0,0,60,32,7,selected?ACCENT:PANEL);sprite.setTextColor(selected?TFT_BLACK:TFT_LIGHTGREY);sprite.setTextDatum(middle_center);sprite.drawString("Config",30,16);sprite.pushSprite(5,M5.Display.height()-37);
+    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(60,16)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
+    sprite.fillSprite(HOME_BG);sprite.fillRoundRect(0,0,60,16,5,selected?ACCENT:PANEL);sprite.setTextColor(selected?TFT_BLACK:TFT_LIGHTGREY);sprite.setTextDatum(middle_center);sprite.drawString("Config",30,8);sprite.pushSprite(5,M5.Display.height()-21);
 }
 
 void Display::drawForgetButton(bool selected) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(60,32)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
-    sprite.fillSprite(HOME_BG);sprite.fillRoundRect(0,0,60,32,7,selected?ACCENT:PANEL);sprite.setTextColor(selected?TFT_BLACK:TFT_LIGHTGREY);sprite.setTextDatum(middle_center);sprite.drawString("Forget",30,16);sprite.pushSprite(70,M5.Display.height()-37);
+    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(60,16)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
+    sprite.fillSprite(HOME_BG);sprite.fillRoundRect(0,0,60,16,5,selected?ACCENT:PANEL);sprite.setTextColor(selected?TFT_BLACK:TFT_LIGHTGREY);sprite.setTextDatum(middle_center);sprite.drawString("Forget",30,8);sprite.pushSprite(70,M5.Display.height()-21);
 }
 
 void Display::drawConfirmButtons(bool yes_selected) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(60,32)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
-    sprite.fillSprite(HOME_BG);sprite.fillRoundRect(0,0,60,32,7,yes_selected?TFT_RED:PANEL);sprite.setTextColor(yes_selected?TFT_WHITE:TFT_LIGHTGREY);sprite.setTextDatum(middle_center);sprite.drawString("YES",30,16);sprite.pushSprite(5,M5.Display.height()-37);
-    sprite.fillSprite(HOME_BG);sprite.fillRoundRect(0,0,60,32,7,!yes_selected?TFT_RED:PANEL);sprite.setTextColor(!yes_selected?TFT_WHITE:TFT_LIGHTGREY);sprite.setTextDatum(middle_center);sprite.drawString("NO",30,16);sprite.pushSprite(70,M5.Display.height()-37);
+    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(60,16)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
+    sprite.fillSprite(HOME_BG);sprite.fillRoundRect(0,0,60,16,5,yes_selected?TFT_RED:PANEL);sprite.setTextColor(yes_selected?TFT_WHITE:TFT_LIGHTGREY);sprite.setTextDatum(middle_center);sprite.drawString("YES",30,8);sprite.pushSprite(5,M5.Display.height()-21);
+    sprite.fillSprite(HOME_BG);sprite.fillRoundRect(0,0,60,16,5,!yes_selected?TFT_RED:PANEL);sprite.setTextColor(!yes_selected?TFT_WHITE:TFT_LIGHTGREY);sprite.setTextDatum(middle_center);sprite.drawString("NO",30,8);sprite.pushSprite(70,M5.Display.height()-21);
 }
 
 void Display::drawVoiceStatus(VoiceState state,const std::string& message,const std::string& caption) {
@@ -142,7 +156,7 @@ void Display::drawVoiceStatus(VoiceState state,const std::string& message,const 
 void Display::draw(const AppState& s, const Settings& cfg, const TextInput& input) {
     auto& d=M5.Display; d.startWrite(); d.fillScreen(s.screen==Screen::HOME?HOME_BG:BG); d.setFont(&fonts::efontJA_12);d.setTextSize(1); d.setTextDatum(top_left);
     if (s.screen==Screen::HOME) {
-        drawWifi(s.wifi);drawBattery(s.battery_percent);drawDate(s.time_synced);drawClock(s.time_synced);drawFace(s.face);drawVoiceStatus(s.voice,s.voice_message,s.voice_caption);if(s.confirm_forget)drawConfirmButtons(s.home_selection==0);else{drawConfigButton(s.home_selection==0);drawForgetButton(s.home_selection==1);}
+        drawWifi(s.wifi);drawBattery(s.battery_percent);drawDate(s.time_synced);drawFace(s.face);drawVoiceStatus(s.voice,s.voice_message,s.voice_caption);if(s.confirm_forget)drawConfirmButtons(s.home_selection==0);else{drawConfigButton(s.home_selection==0);drawForgetButton(s.home_selection==1);}
     } else if (s.screen==Screen::SETTINGS) {
         d.setTextColor(TFT_WHITE); d.drawString("Config",8,5); char line[80];
         std::snprintf(line,sizeof(line),"SSID  %s",cfg.ssid.empty()?"(Not set)":cfg.ssid.c_str()); button(20,line,s.settings_selection==0);

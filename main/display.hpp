@@ -10,9 +10,9 @@ public:
     void drawWifi(WifiStatus);
     void drawBattery(int);
     void drawDate(bool);
-    void drawClock(bool);
     void drawFace(FaceExpression);
     void drawMouth(FaceExpression);
+    void drawRollingFace(FaceExpression, float cx, float cy, float angle, float scale);
     void drawConfigButton(bool);
     void drawForgetButton(bool);
     void drawConfirmButtons(bool yes_selected);
