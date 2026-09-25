@@ -6,6 +6,8 @@
 #include "web_server.hpp"
 #include "wifi_manager.hpp"
 #include "voice_chat.hpp"
+#include "sensor_manager.hpp"
+#include "ir_api.hpp"
 #include <string>
 
 class App {
@@ -31,6 +33,8 @@ private:
     TimeManager time_;
     WebServer web_;
     VoiceChat voice_;
+    SensorManager sensor_;
+    IrApi ir_api_;
     TextInput input_;
     Display display_;
     int64_t volume_changed_us_=0;

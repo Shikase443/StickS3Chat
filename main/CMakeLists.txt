@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "main.cpp" "app.cpp" "display.cpp" "face_store.cpp" "text_input.cpp" "settings_store.cpp" "time_manager.cpp" "wifi_manager.cpp" "web_server.cpp" "voice_chat.cpp"
+    SRCS "main.cpp" "app.cpp" "display.cpp" "face_store.cpp" "text_input.cpp" "settings_store.cpp" "time_manager.cpp" "wifi_manager.cpp" "web_server.cpp" "voice_chat.cpp" "sensor_decode.cpp" "sensor_manager.cpp" "ir_engine.cpp" "ir_api.cpp"
     INCLUDE_DIRS "."
-    REQUIRES esp_wifi esp_event esp_netif esp_http_client esp_http_server esp-tls nvs_flash mbedtls json M5Unified joltwallet__littlefs
+    REQUIRES esp_wifi esp_event esp_netif esp_http_client esp_http_server esp-tls nvs_flash mbedtls json M5Unified joltwallet__littlefs bt esp_driver_rmt
 )

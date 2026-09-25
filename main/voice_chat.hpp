@@ -17,6 +17,10 @@ public:
     bool begin();
     void tick();
     void update(bool pressed, bool released, bool wifi_connected, const Settings& settings);
+    // IR学習中のアンプ再有効化ガード用フラグを登録。
+    void setIrLearningActive(std::atomic<bool>* flag) { ir_learning_active_ = flag; }
+    // 発話API: 発話要求をキューへ投入。キュー満杯ならfalse。
+    bool speak(const std::string& text, const Settings& settings);
     VoiceState state() const { return state_.load(); }
     uint8_t mouthLevel() const { return mouth_level_.load(); }
     std::string message() const;
@@ -36,7 +40,8 @@ private:
     bool synthesize(const Settings&, const std::string&, std::vector<uint8_t>&, bool& raw_pcm, std::string& error);
     bool synthesizeAndPlay(const Settings&, const std::string&, std::string& error);
     bool synthesizeGeminiAndPlay(const Settings&, const std::string&, std::string& error);
-    bool integrated(const Settings&, const int16_t*, size_t, std::string&, std::string&);
+    bool integrated(const Settings&, const int16_t*, size_t, std::string&, std::string&, std::string& error);
+    bool integratedSpeak(const Settings&, const std::string&, std::string& error);
     bool playStream(HttpReader&, size_t bytes_remaining, bool bounded);
     bool play(const std::vector<uint8_t>&, bool raw_pcm);
     void setState(VoiceState, const std::string& = {});
@@ -74,4 +79,7 @@ private:
     std::string configured_session_;
     std::atomic<size_t> stack_low_water_{0};
     std::atomic<size_t> free_heap_{0};
+    std::atomic<bool>* ir_learning_active_ = nullptr;
+    bool ampAllowed() const { return !(ir_learning_active_ && ir_learning_active_->load()); }
+    QueueHandle_t speak_queue_ = nullptr;
 };

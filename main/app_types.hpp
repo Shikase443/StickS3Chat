@@ -1,6 +1,9 @@
 #pragma once
 #include <array>
 #include <string>
+#include <vector>
+#include "sensor_types.hpp"
+#include "ir_types.hpp"
 
 enum class Screen { HOME, SETTINGS, TEXT_INPUT_SSID, TEXT_INPUT_PASS };
 enum class WifiStatus { IDLE, CONNECTING, CONNECTED, FAILED };
@@ -44,6 +47,10 @@ struct Settings {
     IntegratedSettings integrated;
     uint8_t volume_level = 3;
     uint8_t brightness_level = 3;
+    EsSettings es;
+    std::vector<SensorDevice> sensors;  // max MAX_SENSORS
+    IrSettings ir;
+    bool speak_enabled = false;  // 発話APIの有効/無効（BearerトークンはIRと共有）
 };
 struct AppState {
     Screen screen = Screen::HOME;

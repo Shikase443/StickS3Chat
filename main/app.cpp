@@ -67,12 +67,13 @@ void App::begin() {
     auto cfg=M5.config();
     cfg.fallback_board=m5::board_t::board_M5StickS3;
     M5.begin(cfg);
+    M5.Power.setExtOutput(true);  // IR回路用の外部出力
     auto speaker_config=M5.Speaker.config();
     speaker_config.magnification=4;
     M5.Speaker.config(speaker_config);
     display_.begin();
     face_store_.begin();display_.setFaceStore(&face_store_);web_.setFaceStore(&face_store_);
-    store_.begin();settings_=store_.load();time_.begin(settings_);wifi_.begin();voice_.begin();if(!settings_.ssid.empty())wifi_.connect(settings_);
+    store_.begin();settings_=store_.load();time_.begin(settings_);wifi_.begin();voice_.begin();sensor_.configure(settings_);sensor_.begin();ir_api_.configure(settings_);web_.setIrApi(&ir_api_);web_.setVoiceChat(&voice_);voice_.setIrLearningActive(&ir_api_.learningActive());if(!settings_.ssid.empty())wifi_.connect(settings_);
     static constexpr uint8_t volumes[]{64,128,192,255};M5.Speaker.setVolume(volumes[settings_.volume_level]);
     static constexpr uint8_t brightness[]{64,128,192,255};M5.Display.setBrightness(brightness[settings_.brightness_level]);
     int64_t now=esp_timer_get_time();next_smile_us_=now+4000000+(esp_random()%5000000);last_battery_poll_us_=now;last_activity_us_=now;state_.battery_percent=static_cast<int>(M5.Power.getBatteryLevel());previous_face_=state_.face;previous_date_=dateKey(state_.time_synced);previous_minute_=minuteKey(state_.time_synced);
@@ -177,7 +178,7 @@ void App::textInput(bool a) {
 }
 
 void App::enterSettings(){state_.screen=Screen::SETTINGS;state_.settings_selection=-1;state_.redraw=true;if(!settings_.ssid.empty()&&wifi_.status()!=WifiStatus::CONNECTED)wifi_.connect(settings_);}
-void App::leaveSettings(){web_.stop();state_.web_running=false;state_.web_password.clear();state_.screen=Screen::HOME;state_.home_selection=-1;home_full_dirty_=true;state_.redraw=true;markActivity();}
+void App::leaveSettings(){state_.screen=Screen::HOME;state_.home_selection=-1;home_full_dirty_=true;state_.redraw=true;markActivity();}
 
 void App::markActivity(){last_activity_us_=esp_timer_get_time();}
 
@@ -356,11 +357,14 @@ void App::sync(){
         if(state_.screen==Screen::HOME){date_dirty_=true;}else state_.redraw=true;
     }
     bool in_settings=state_.screen==Screen::SETTINGS;
-    if(in_settings&&state_.wifi==WifiStatus::CONNECTED&&!web_.running()){web_.start(settings_,saveWebSettings,this);state_.web_running=web_.running();state_.web_password=web_.password();state_.redraw=true;}
-    else if((!in_settings||state_.wifi!=WifiStatus::CONNECTED)&&web_.running()){web_.stop();state_.web_running=false;state_.web_password.clear();state_.redraw=true;}
+    // WebServerはWi-Fi接続中に常時起動（IR APIもポート80で提供）。
+    if(state_.wifi==WifiStatus::CONNECTED&&!web_.running()){web_.start(settings_,saveWebSettings,this);state_.web_running=web_.running();state_.web_password=web_.password();state_.redraw=true;}
+    else if(state_.wifi!=WifiStatus::CONNECTED&&web_.running()){web_.stop();state_.web_running=false;state_.web_password.clear();state_.redraw=true;}
+    // 設定画面はConfig遷移時のみアクセス可能。
+    web_.setSettingsEnabled(in_settings);
 }
 
 void App::saveWebSettings(void* context,const Settings& settings){
-    auto* self=static_cast<App*>(context);self->settings_=settings;self->store_.save(self->settings_);self->time_.apply(self->settings_);self->state_.time_synced=false;self->state_.redraw=true;
+    auto* self=static_cast<App*>(context);self->settings_=settings;self->store_.save(self->settings_);self->time_.apply(self->settings_);self->sensor_.configure(self->settings_);self->ir_api_.configure(self->settings_);self->state_.time_synced=false;self->state_.redraw=true;
 }
 

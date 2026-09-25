@@ -73,18 +73,18 @@ M5Canvas& faceSprite() {
 void Display::begin() { M5.Display.setRotation(0); M5.Display.setBrightness(200); M5.Display.setFont(&fonts::efontJA_12); }
 
 void Display::drawWifi(WifiStatus status) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(24,18)!=nullptr;}if(!ready)return;
+    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);sprite.setPsram(true);ready=sprite.createSprite(24,18)!=nullptr;}if(!ready)return;
     sprite.fillSprite(HOME_BG);uint32_t color=status==WifiStatus::CONNECTED?TFT_GREEN:0x0320;
     sprite.drawArc(8,9,8,7,215,325,color);sprite.drawArc(8,9,5,4,215,325,color);sprite.fillCircle(8,11,1,color);sprite.pushSprite(75,0);
 }
 
 void Display::drawBattery(int level) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(34,18)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
+    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);sprite.setPsram(true);ready=sprite.createSprite(34,18)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
     level=std::clamp(level,0,100);sprite.fillSprite(HOME_BG);sprite.drawRect(1,3,28,12,TFT_GREEN);sprite.fillRect(29,6,3,6,TFT_GREEN);int fill=level*24/100;if(fill>0)sprite.fillRect(3,5,fill,8,TFT_GREEN);char text[8];std::snprintf(text,sizeof(text),"%d%%",level);sprite.setTextColor(TFT_BLACK);sprite.setTextSize(1);sprite.setTextDatum(middle_left);sprite.drawString(text,4,9);sprite.pushSprite(M5.Display.width()-34,0);
 }
 
 void Display::drawDate(bool synced) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(70,18)!=nullptr;sprite.setFont(&fonts::efontJA_12_b);}if(!ready)return;
+    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);sprite.setPsram(true);ready=sprite.createSprite(70,18)!=nullptr;sprite.setFont(&fonts::efontJA_12_b);}if(!ready)return;
     char text[48]="-:-- -/-";if(synced){std::time_t now=std::time(nullptr);std::tm local{};localtime_r(&now,&local);std::snprintf(text,sizeof(text),"%d:%02d %d/%d",local.tm_hour,local.tm_min,local.tm_mon+1,local.tm_mday);}sprite.fillSprite(HOME_BG);sprite.setTextColor(TFT_WHITE);sprite.setTextSize(1);sprite.setTextDatum(top_left);sprite.drawString(text,0,2);sprite.pushSprite(5,0);
 }
 
@@ -126,24 +126,35 @@ void Display::drawRollingFace(FaceExpression expression, float cx, float cy, flo
 }
 
 void Display::drawConfigButton(bool selected) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(60,16)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
+    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);sprite.setPsram(true);ready=sprite.createSprite(60,16)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
     sprite.fillSprite(HOME_BG);sprite.fillRoundRect(0,0,60,16,5,selected?ACCENT:PANEL);sprite.setTextColor(selected?TFT_BLACK:TFT_LIGHTGREY);sprite.setTextDatum(middle_center);sprite.drawString("Config",30,8);sprite.pushSprite(5,M5.Display.height()-21);
 }
 
 void Display::drawForgetButton(bool selected) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(60,16)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
+    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);sprite.setPsram(true);ready=sprite.createSprite(60,16)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
     sprite.fillSprite(HOME_BG);sprite.fillRoundRect(0,0,60,16,5,selected?ACCENT:PANEL);sprite.setTextColor(selected?TFT_BLACK:TFT_LIGHTGREY);sprite.setTextDatum(middle_center);sprite.drawString("Forget",30,8);sprite.pushSprite(70,M5.Display.height()-21);
 }
 
 void Display::drawConfirmButtons(bool yes_selected) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(60,16)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
+    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);sprite.setPsram(true);ready=sprite.createSprite(60,16)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
     sprite.fillSprite(HOME_BG);sprite.fillRoundRect(0,0,60,16,5,yes_selected?TFT_RED:PANEL);sprite.setTextColor(yes_selected?TFT_WHITE:TFT_LIGHTGREY);sprite.setTextDatum(middle_center);sprite.drawString("YES",30,8);sprite.pushSprite(5,M5.Display.height()-21);
     sprite.fillSprite(HOME_BG);sprite.fillRoundRect(0,0,60,16,5,!yes_selected?TFT_RED:PANEL);sprite.setTextColor(!yes_selected?TFT_WHITE:TFT_LIGHTGREY);sprite.setTextDatum(middle_center);sprite.drawString("NO",30,8);sprite.pushSprite(70,M5.Display.height()-21);
 }
 
 void Display::drawVoiceStatus(VoiceState state,const std::string& message,const std::string& caption) {
-    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);ready=sprite.createSprite(135,CAPTION_HEIGHT)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
+    static M5Canvas sprite(&M5.Display);static bool ready=false;if(!ready){sprite.setColorDepth(16);sprite.setPsram(true);ready=sprite.createSprite(135,CAPTION_HEIGHT)!=nullptr;sprite.setFont(&fonts::efontJA_12);}if(!ready)return;
     sprite.fillSprite(HOME_BG);sprite.setTextSize(1);sprite.setTextDatum(top_left);
+    const auto diagnostic=message.find("HTTP:");
+    if(state==VoiceState::ERROR&&diagnostic!=std::string::npos){
+        sprite.setFont(&fonts::Font0);
+        sprite.setTextColor(TFT_RED,HOME_BG);
+        sprite.setTextWrap(false,false);
+        sprite.setCursor(2,2);
+        sprite.print(message.substr(diagnostic).c_str());
+        sprite.pushSprite(0,CAPTION_Y);
+        sprite.setFont(&fonts::efontJA_12);
+        return;
+    }
     const bool status=state==VoiceState::STT_PROCESSING||state==VoiceState::LLM_PROCESSING||state==VoiceState::TTS_PROCESSING||state==VoiceState::ERROR;
     const std::string& text=status?message:caption;uint32_t color=state==VoiceState::ERROR?TFT_RED:TFT_WHITE;
     std::vector<std::string> lines(1);std::vector<int> widths(1,0);
