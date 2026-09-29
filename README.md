@@ -1,6 +1,6 @@
 # StickS3Chat
 
-[日本語](README.md) | [English](README_EN.md)
+[日本語](README.md) | [English](README_EN.md) | [homelaboブランチ](README_homelabo.md)
 
 M5Stack StickS3（ESP32-S3）向けの音声会話チャットアプリです。ホーム画面でAボタンを押している間だけ録音し、設定したAIサービスで音声認識、応答生成、音声合成を行い、本体スピーカーから再生します。
 
