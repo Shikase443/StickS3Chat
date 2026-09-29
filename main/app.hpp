@@ -53,6 +53,7 @@ private:
     std::string previous_date_;
     std::string previous_minute_;
     bool rolling_=false;
+    bool display_off_=false;
     int64_t last_activity_us_=0;
     int64_t last_rolling_frame_us_=0;
     float face_x_=0.0f, face_y_=0.0f;      // 中心座標（画面全体 x=0..134 y=0..239）

@@ -53,11 +53,11 @@ int SensorManager::findSensor(const uint8_t addr[6]) const {
     return -1;
 }
 
-void SensorManager::postJson(const std::string& index, cJSON* doc) {
-    std::string url = settings_.es.url + "/" + index + "/_doc/";
+void SensorManager::postJson(const EsSettings& es, const std::string& index, cJSON* doc) {
+    std::string url = es.url + "/" + index + "/_doc/";
     char* body = cJSON_PrintUnformatted(doc);
     if (!body) return;
-    std::string credentials = settings_.es.user + ":" + settings_.es.password;
+    std::string credentials = es.user + ":" + es.password;
     std::string auth("Basic ");
     size_t olen = 0;
     auth.resize(6 + credentials.size() * 2);
@@ -85,7 +85,7 @@ void SensorManager::postJson(const std::string& index, cJSON* doc) {
     cJSON_free(body);
 }
 
-void SensorManager::postValue(const SensorDevice& cfg, const SensorChannel& ch, float value) {
+void SensorManager::postValue(const SensorDevice& cfg, const EsSettings& es, const SensorChannel& ch, float value) {
     char date[25];
     isoUtc(date);
     cJSON* doc = cJSON_CreateObject();
@@ -96,14 +96,11 @@ void SensorManager::postValue(const SensorDevice& cfg, const SensorChannel& ch, 
     cJSON_AddStringToObject(doc, "device", mac);
     if (ch.field.empty() || ch.index.empty()) { cJSON_Delete(doc); return; }
     cJSON_AddNumberToObject(doc, ch.field.c_str(), value);
-    postJson(ch.index, doc);
+    postJson(es, ch.index, doc);
     cJSON_Delete(doc);
 }
 
-void SensorManager::processS400(int idx, const RxItem& item) {
-    std::lock_guard<std::mutex> lock(settings_mutex_);
-    if (idx < 0 || idx >= (int)settings_.sensors.size()) return;
-    const SensorDevice& cfg = settings_.sensors[idx];
+void SensorManager::processS400(int idx, const SensorDevice& cfg, const EsSettings& es, const RxItem& item) {
     S400Values v;
     if (!s400Decode(item.payload, item.payload_len, cfg.mac, cfg.bindkey, &v)) {
         ESP_LOGW(TAG, "S400 decrypt failed (check bindkey)");
@@ -133,7 +130,7 @@ void SensorManager::processS400(int idx, const RxItem& item) {
     cJSON_AddStringToObject(doc, "date", date);
     cJSON_AddNumberToObject(doc, "weight_kg", w);
     cJSON_AddNumberToObject(doc, "body_fat_percent", fat);
-    postJson(cfg.index, doc);
+    postJson(es, cfg.index, doc);
     cJSON_Delete(doc);
     p = S400Pending{};
 }
@@ -142,18 +139,23 @@ void SensorManager::workerTask(void* arg) {
     auto* self = static_cast<SensorManager*>(arg);
     RxItem item;
     while (xQueueReceive(self->rx_queue_, &item, portMAX_DELAY) == pdTRUE) {
-        std::lock_guard<std::mutex> lock(self->settings_mutex_);
-        if (item.sensor_index < 0 || item.sensor_index >= (int)self->settings_.sensors.size()) continue;
-        const SensorDevice& cfg = self->settings_.sensors[item.sensor_index];
+        SensorDevice cfg;
+        EsSettings es;
+        {
+            std::lock_guard<std::mutex> lock(self->settings_mutex_);
+            if (item.sensor_index < 0 || item.sensor_index >= (int)self->settings_.sensors.size()) continue;
+            cfg = self->settings_.sensors[item.sensor_index];
+            es = self->settings_.es;
+        }
         ESP_LOGI(TAG, "%s RSSI=%d", cfg.name.c_str(), item.rssi);
         if (cfg.type == SensorType::XIAOMI_S400) {
-            self->processS400(item.sensor_index, item);
+            self->processS400(item.sensor_index, cfg, es, item);
             continue;
         }
         SensorValues v = sensorDecode(cfg.type, item.payload, item.payload_len);
         if (!v.count) { ESP_LOGW(TAG, "invalid payload for %s", cfg.name.c_str()); continue; }
         for (size_t i = 0; i < v.count && i < cfg.channels.size(); i++)
-            if (v.valid[i]) self->postValue(cfg, cfg.channels[i], v.value[i]);
+            if (v.valid[i]) self->postValue(cfg, es, cfg.channels[i], v.value[i]);
     }
     vTaskDelete(nullptr);
 }

@@ -36,9 +36,9 @@ private:
     static void workerTask(void*);
     void startScan();
     void stopScan();
-    void postJson(const std::string& index, cJSON* doc);
-    void postValue(const SensorDevice& cfg, const SensorChannel& ch, float value);
-    void processS400(int idx, const RxItem& item);
+    void postJson(const EsSettings& es, const std::string& index, cJSON* doc);
+    void postValue(const SensorDevice& cfg, const EsSettings& es, const SensorChannel& ch, float value);
+    void processS400(int idx, const SensorDevice& cfg, const EsSettings& es, const RxItem& item);
     int findSensor(const uint8_t addr[6]) const;
     static void isoUtc(char out[25]);
     static int ageFromBirth(const std::string& birth);

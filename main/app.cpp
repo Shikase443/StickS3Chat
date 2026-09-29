@@ -17,6 +17,7 @@ constexpr float IMU_TO_SCREEN_Y=1.0f;  // 実機で逆なら-1.0f
 void mapImuGravityToScreen(float gx,float gy,float& sx,float& sy){sx=IMU_TO_SCREEN_X*gx;sy=IMU_TO_SCREEN_Y*gy;}
 // Rolling screensaver physics (unified 2D model)
 constexpr int64_t ROLLING_IDLE_US=10000000;
+constexpr int64_t DISPLAY_SLEEP_US=300000000;  // 300秒
 constexpr float ROLLING_SCALE=1.0f;
 constexpr int ROLLING_FACE=114;
 constexpr float ROLLING_RADIUS=ROLLING_FACE/2.0f;   // 57
@@ -81,7 +82,12 @@ void App::begin() {
 }
 
 void App::update() {
-    M5.update();wifi_.update();voice_.tick();bool a=M5.BtnA.wasPressed(),released=M5.BtnA.wasReleased(),b=M5.BtnB.wasPressed();
+    M5.update();wifi_.update();bool a=M5.BtnA.wasPressed(),released=M5.BtnA.wasReleased(),b=M5.BtnB.wasPressed();
+    if(display_off_){
+        if(a||b){display_off_=false;static constexpr uint8_t br[]{64,128,192,255};M5.Display.setBrightness(br[settings_.brightness_level]);home_full_dirty_=true;markActivity();}
+        return;
+    }
+    voice_.tick();
     if(state_.screen==Screen::TEXT_INPUT_SSID||state_.screen==Screen::TEXT_INPUT_PASS)textInput(a);
     else if(state_.screen==Screen::HOME&&state_.home_selection<0){
         if(rolling_&&(a||b))exitRolling();
@@ -108,6 +114,7 @@ void App::update() {
     }
     if(state_.screen==Screen::HOME&&state_.home_selection<0&&voice_state==VoiceState::IDLE){
         if(!rolling_&&now-last_activity_us_>=ROLLING_IDLE_US)enterRolling();
+        if(!display_off_&&now-last_activity_us_>=DISPLAY_SLEEP_US){display_off_=true;M5.Display.setBrightness(0);}
     }else if(rolling_){
         exitRolling();
     }
