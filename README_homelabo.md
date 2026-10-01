@@ -19,7 +19,7 @@ homelaboブランチは、StickS3Chatのコア機能（音声会話チャット�
 
 ホーム画面で10秒間操作がないと、顔が画面内を転がる待機画面へ移行します。端末の傾き（IMUの重力ベクトル）を画面座標へ変換し、画面内の仮想的な箱の中で顔が現実の重力に従って転がる物理シミュレーションを行います。
 
-<p align="center"><img src="https://raw.githubusercontent.com/Shikase443/StickS3Chat/homelabo/doc/FACE_IMU.mp4" alt="ROLLINGモードデモ" width="320"></p>
+<p align="center"><img src="doc/FACE_IMU.gif" alt="ROLLINGモードデモ" width="240"></p>
 
 ### 動作
 
